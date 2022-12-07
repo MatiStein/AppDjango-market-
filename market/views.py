@@ -79,7 +79,7 @@ def get_latest_data(request):
 
         ticker = tick[0]
         stocks = Stock.objects.filter(
-            time__lt=current_date, ticker=ticker).order_by("-time")
+        time__lt=current_date, ticker=ticker).order_by("-time")
         the_latest_date = str(stocks.values_list("time", flat=True).first())
         year = the_latest_date[0:4]
         month = the_latest_date[5:7]
@@ -126,9 +126,12 @@ def get_latest_data(request):
 @api_view(["GET"])
 def get_data(requests, ticker):
     if requests.method == "GET":
-        ticker = requests.get('ticker', '')
+        ticker = requests.GET.get('ticker', '')
+        print(ticker)
         current_date = date.today()
-        start_date = date.today() + timedelta(days=-600)
+        start_date = date.today()
+        start_date=-600
+        
         url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{current_date}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
         response = requests.get(url)
         print(response.status_code)
@@ -147,6 +150,6 @@ def get_data(requests, ticker):
             time=response.datetime.fromtimestamp(['t']),
             num_transactions=response.data['n']
             )
-        return Response(f'Updated today {data} amount of stocks data', status=status.HTTP_201_CREATED)
+        return Response (f"A new ticker was collected {ticker}{response.data}, status={response.status_code}")
 
         # AMD, INTC, NVDA, MIRM, ALBO, AVXL, MULN, SNDL,
