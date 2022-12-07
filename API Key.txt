@@ -1,0 +1,4 @@
+nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D
+
+
+https://api.polygon.io/v2/aggs/ticker/AAPL/range/1/day/2021-07-01/2022-07-01?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D

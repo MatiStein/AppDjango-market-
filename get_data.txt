@@ -1,0 +1,21 @@
+import csv
+import requests
+import pandas as pd
+import time
+
+with open('SP500symbols.csv', newline='') as f:
+    reader = csv.reader(f)
+    tickers = list(reader)[0]
+    
+for ticker in tickers:
+    url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/2020-08-01/2022-09-01?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+    response = requests.get(url)
+    print(response.status_code)
+    data = response.json()
+    print(ticker)
+    print(data.keys)
+    if 'results' in data:
+        data_csv = pd.DataFrame.from_records(data["results"])
+        data_csv.to_csv(f'./{data["ticker"]}.csv')
+
+# print(data["resultsCount"])
