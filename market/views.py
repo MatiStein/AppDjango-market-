@@ -5,7 +5,7 @@ from rest_framework import status
 from market.models import ( Stock, IrregularStocksDates )
 from market.serializers import StockSerializer
 from datetime import ( datetime, date, timedelta )
-from django.db.models import Avg
+from django.db.models import Avg, Count
 import requests
 import time
 
@@ -30,8 +30,7 @@ def stocks_list(requests):
                             status=status.HTTP_400_BAD_REQUEST)
 
         filtered_stocks = Stock.objects.filter(
-            ticker__icontains=ticker, time__gte=from_date_object, time__lte=to_date_object)
-
+            ticker__icontains=ticker, time__gte=from_date_object, time__lte=to_date_object).order_by("-time")
         serializer = StockSerializer(filtered_stocks, many=True)
         return Response(serializer.data)
 
@@ -108,6 +107,9 @@ def get_latest_data(request):
             print("RUN Once on ticker ", data["ticker"])
             ticker_timestamp = str(ticker_result['t'])
             corrected_timestamp = ticker_timestamp[0:10]
+            already_exist = Stock.objects.filter(ticker=data["ticker"],time=datetime.fromtimestamp(int(corrected_timestamp))).count()
+            if already_exist > 0:
+                continue
             Stock.objects.create(
                 ticker=data["ticker"],
                 volume=ticker_result["v"],
@@ -124,32 +126,56 @@ def get_latest_data(request):
 
 
 @api_view(["GET"])
-def get_data(requests, ticker):
-    if requests.method == "GET":
-        ticker = requests.GET.get('ticker', '')
+def get_data(request):
+    if request.method == "GET":
+        ticker = request.GET.get('ticker', '')
         print(ticker)
         current_date = date.today()
-        start_date = date.today()
-        start_date=-600
+        start_date = current_date - timedelta(days=729)
+
+        current_date_string = current_date.strftime("%Y-%m-%d")
+        start_date_string = start_date.strftime("%Y-%m-%d")
+
         
-        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date}/{current_date}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date_string}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
         response = requests.get(url)
-        print(response.status_code)
-        print(start_date)
-        print (response.ticker)
         data = response.json()
-        if 'results' in data:
+        
+        for data_row in data["results"]:
+            print(data_row["t"])
+            ticker_timestamp = str(data_row['t'])
+            corrected_timestamp = ticker_timestamp[0:10]
             Stock.objects.create(
-            ticker=response.data["ticker"],
-            volume=response.data["v"],
-            volume_weighted=response.data['vw'],
-            open_price=response.data['o'],
-            close_price=response.data['c'],
-            highest_price=response.data['h'],
-            lowest_price=response.data['l'],
-            time=response.datetime.fromtimestamp(['t']),
-            num_transactions=response.data['n']
+            ticker=data["ticker"],
+            volume=data_row["v"],
+            volume_weighted=data_row['vw'],
+            open_price=data_row['o'],
+            close_price=data_row['c'],
+            highest_price=data_row['h'],
+            lowest_price=data_row['l'],
+            time=datetime.fromtimestamp(int(corrected_timestamp)),
+            num_transactions=data_row['n']
             )
-        return Response (f"A new ticker was collected {ticker}{response.data}, status={response.status_code}")
+        return Response (f"A new ticker was collected {ticker} ")
 
         # AMD, INTC, NVDA, MIRM, ALBO, AVXL, MULN, SNDL,
+
+
+@api_view(["GET"])
+def delete_duplicate_rows(requests):
+    data = Stock.objects.all()
+    data.delete()
+    return Response("Deleted")
+    duplicate_rows = Stock.objects.values_list("ticker","time").annotate(id_c=Count('id')).filter(ticker="AAPL",id_c__gt=1)
+    print(duplicate_rows)
+    for index,row in enumerate(duplicate_rows):
+        if index == 0:
+            continue
+        Stock.objects.delete()
+        # Stock.objects.filter(ticker=row[0],time=row[1]).delete()
+
+    return Response("Done")
+
+
+
+
