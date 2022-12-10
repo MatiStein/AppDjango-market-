@@ -11,6 +11,9 @@ class Stock(models.Model):
     lowest_price = models.DecimalField(max_digits=16, decimal_places=6)
     time = models.DateTimeField() 
     num_transactions = models.IntegerField()
+
+    class Meta:
+        unique_together = [['ticker', 'time']]
     
     def __str__(self):
         return f"{self.ticker}, {self.close_price}, {self.volume}"
@@ -22,6 +25,9 @@ class IrregularStocksDates(models.Model):
     volume = models.DecimalField(max_digits=24 ,decimal_places=6)
     avg_volume = models.DecimalField(max_digits=24,decimal_places=6)
     time = models.DateTimeField(null=True)
+
+    class Meta:
+        unique_together = [['ticker', 'time']]
 
     def __str__(self) -> str:
         return f"{self.ticker} with {self.volume} at {self.time}"

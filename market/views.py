@@ -38,35 +38,57 @@ def stocks_list(requests):
 @api_view(["GET"])
 def analyze_volume_data(requests):
     if requests.method == "GET":
-        ticker = requests.GET.get('ticker', '')
+        #ticker = requests.GET.get('ticker', '')
         multiplier = requests.GET.get('multi', 2)
+        ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
+        
+        for ticker in ticker_unique:
+            ticker = ticker[0]
+            amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
 
-        amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
+            for period in range(amount_of_rows_per_stock//40):
+                offset = 40*period
+                limit = 40*(period+1)
+                print(f'From {offset} to {limit}')
+                filtered_stocks = Stock.objects.filter(
+                    ticker__icontains=ticker).order_by("-time")[offset:limit]
+                avg_volume = filtered_stocks.aggregate(Avg("volume"))[
+                    "volume__avg"]
+                print("The Average is: ", avg_volume)
+                value_to_check = float(avg_volume) * float(multiplier)
+                data_to_response = Stock.objects.filter(
+                    volume__gte=value_to_check,ticker__icontains=ticker).order_by("-time")[offset:limit]
 
-        for period in range(amount_of_rows_per_stock//40):
-            offset = 40*period
-            limit = 40*(period+1)
-            print(f'From {offset} to {limit}')
-            filtered_stocks = Stock.objects.filter(
-                ticker__icontains=ticker).order_by("-time")[offset:limit]
-            avg_volume = filtered_stocks.aggregate(Avg("volume"))[
-                "volume__avg"]
-            print("The Average is: ", filtered_stocks)
-            print(Stock.objects.filter(ticker__icontains=ticker).order_by(
-                "-time")[offset:limit].count())
-            value_to_check = float(avg_volume) * float(multiplier)
-            data_to_response = filtered_stocks.filter(
-                volume__gte=value_to_check)
-            for row in data_to_response:
-
-                IrregularStocksDates.objects.create(
-                    ticker=ticker,
-                    volume=row.volume,
-                    avg_volume=filtered_stocks,
-                    time=row.time
-                )
-                print("ADDED IRREGULAR ROW TO ", ticker)
+                for row in data_to_response:
+                    already_existed = IrregularStocksDates.objects.filter(ticker=ticker,time=row.time)
+                    if already_existed:
+                        continue
+                    IrregularStocksDates.objects.create(
+                        ticker=ticker,
+                        volume=row.volume,
+                        avg_volume=avg_volume,
+                        time=row.time
+                    )
+                    print("ADDED IRREGULAR ROW TO ", ticker)
         return Response("Done")
+
+
+@api_view(["GET"])
+def delete_duplicate_rows(request):
+    
+    
+    return Response("Deleted")
+    duplicate_rows = Stock.objects.values_list("ticker","time").annotate(id_c=Count('id')).filter(ticker="AAPL",id_c__gt=1)
+    print(duplicate_rows)
+    for index,row in enumerate(duplicate_rows):
+        if index == 0:
+            continue
+        Stock.objects.delete()
+        # Stock.objects.filter(ticker=row[0],time=row[1]).delete()
+        # data = Stock.objects.all()
+        # data.delete()
+
+    return Response("Done")
 
 
 
@@ -158,23 +180,19 @@ def get_data(request):
             )
         return Response (f"A new ticker was collected {ticker} ")
 
-        # AMD, INTC, NVDA, MIRM, ALBO, AVXL, MULN, SNDL,
+        # AMD, INTC, NVDA
+        # MIRM, ALBO, AVXL, 
+        # # MULN, SNDL,
 
 
 @api_view(["GET"])
-def delete_duplicate_rows(requests):
-    data = Stock.objects.all()
-    data.delete()
-    return Response("Deleted")
-    duplicate_rows = Stock.objects.values_list("ticker","time").annotate(id_c=Count('id')).filter(ticker="AAPL",id_c__gt=1)
-    print(duplicate_rows)
-    for index,row in enumerate(duplicate_rows):
-        if index == 0:
-            continue
-        Stock.objects.delete()
-        # Stock.objects.filter(ticker=row[0],time=row[1]).delete()
-
+def get_duplicates(request):
+    duplicates = IrregularStocksDates.objects.values('ticker',"time").annotate(ticker_count=Count('id'),time_count=Count("id")).filter(ticker_count__gt=1)
+    print(duplicates)
+    # IrregularStocksDates.objects.all().delete()
+    # Stock.objects.filter(ticker="NVDA").delete()
     return Response("Done")
+
 
 
 
