@@ -2,18 +2,22 @@ from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from market.models import ( Stock, IrregularStocksDates )
+from market.models import (Stock, IrregularStocksDates)
 from market.serializers import StockSerializer
-from datetime import ( datetime, date, timedelta )
+from datetime import (datetime, date, timedelta)
 from django.db.models import Avg, Count
 import requests
 import time
+from apscheduler.schedulers.background import BackgroundScheduler
+# from apscheduler.triggers.interval import IntervalTrigger
+# from apscheduler.triggers.date import DateTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 
 
 
 @api_view(['GET', 'POST'])
-def stocks_list(requests):
+def stocks_list(requests): # View of data by 'ticker'
     if requests.method == "GET":
         ticker = requests.GET.get('ticker', '')
         from_date = requests.GET.get('from_date', '01-01-1970')
@@ -35,50 +39,83 @@ def stocks_list(requests):
         return Response(serializer.data)
 
 
+
+
 @api_view(["GET"])
-def analyze_volume_data(requests):
-    if requests.method == "GET":
-        ticker = requests.GET.get('ticker', '')
-        multiplier = requests.GET.get('multi', 2)
-        ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
+def get_data(request): # Import new 'ticker' to system.
+    if request.method == "GET":
+        ticker = request.GET.get('ticker', '')
+        print(ticker)
+        current_date = date.today()
+        start_date = current_date - timedelta(days=729)
+
+        current_date_string = current_date.strftime("%Y-%m-%d")
+        start_date_string = start_date.strftime("%Y-%m-%d")
+
         
-        for ticker in ticker_unique:
-            ticker = ticker[0]
-            amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
-
-            for period in range(amount_of_rows_per_stock//40):
-                offset = 40*period
-                limit = 40*(period+1)
-                print(f'From {offset} to {limit}')
-                filtered_stocks = Stock.objects.filter(
-                    ticker__icontains=ticker).order_by("-time")[offset:limit]
-                avg_volume = filtered_stocks.aggregate(Avg("volume"))[
-                    "volume__avg"]
-                print("The Average is: ", avg_volume)
-                value_to_check = float(avg_volume) * float(multiplier)
-                data_to_response = Stock.objects.filter(
-                    volume__gte=value_to_check,ticker__icontains=ticker).order_by("-time")[offset:limit]
-
-                for row in data_to_response:
-                    already_existed = IrregularStocksDates.objects.filter(ticker=ticker,time=row.time)
-                    if already_existed:
-                        continue
-                    IrregularStocksDates.objects.create(
-                        ticker=ticker,
-                        volume=row.volume,
-                        avg_volume=avg_volume,
-                        time=row.time
-                    )
-                    print("ADDED IRREGULAR ROW TO ", ticker)
-        return Response("Done")
+        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date_string}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+        response = requests.get(url)
+        data = response.json()
+        
+        for data_row in data["results"]:
+            print(data_row["t"])
+            ticker_timestamp = str(data_row['t'])
+            corrected_timestamp = ticker_timestamp[0:10]
+            Stock.objects.create(
+            ticker=data["ticker"],
+            volume=data_row["v"],
+            volume_weighted=data_row['vw'],
+            open_price=data_row['o'],
+            close_price=data_row['c'],
+            highest_price=data_row['h'],
+            lowest_price=data_row['l'],
+            time=datetime.fromtimestamp(int(corrected_timestamp)),
+            num_transactions=data_row['n']
+            )
+        return Response (f"A new ticker was collected {ticker} ")
 
 
-@api_view(["GET"])
-def get_latest_data(request):
+
+def analyze_volume_data(): # Analyze data by 'ticker' using method 'Moving Average' of 40 trade days.
+    multiplier = 2         # Find those days higher then Average.
+    ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
+
+    for ticker in ticker_unique:
+        ticker = ticker[0]
+        amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
+
+        for period in range(amount_of_rows_per_stock//40):
+            offset = 40*period
+            limit = 40*(period+1)
+            print(f'From {offset} to {limit}')
+            filtered_stocks = Stock.objects.filter(
+                ticker__icontains=ticker).order_by("-time")[offset:limit]
+            avg_volume = filtered_stocks.aggregate(Avg("volume"))[
+                "volume__avg"]
+            print("The Average is: ", avg_volume)
+            value_to_check = float(avg_volume) * float(multiplier)
+            data_to_response = Stock.objects.filter(
+                volume__gte=value_to_check,ticker__icontains=ticker).order_by("-time")[offset:limit]
+
+            for row in data_to_response:
+                already_existed = IrregularStocksDates.objects.filter(ticker=ticker,time=row.time)
+                if already_existed:
+                    continue
+                IrregularStocksDates.objects.create(
+                    ticker=ticker,
+                    volume=row.volume,
+                    avg_volume=avg_volume,
+                    time=row.time
+                )
+                print("ADDED IRREGULAR ROW TO ", ticker)
+    return print("Done analyzing the data")
+
+
+def get_latest_data(): # Update data by 'ticker', since last known entry in data
     current_date = datetime.now()
+    print("Started getting latest data at " , current_date)
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
     for tick in ticker_unique:
-
         ticker = tick[0]
         stocks = Stock.objects.filter(
         time__lt=current_date, ticker=ticker).order_by("-time")
@@ -125,76 +162,11 @@ def get_latest_data(request):
                 num_transactions=ticker_result['n']
             )
     data = ticker_unique.count()
-    return Response(f'Updated today {data} amount of stocks data', status=status.HTTP_201_CREATED)
+    return print(f'Updated today {data} amount of stocks data')
 
 
-@api_view(["GET"])
-def get_data(request):
-    if request.method == "GET":
-        ticker = request.GET.get('ticker', '')
-        print(ticker)
-        current_date = date.today()
-        start_date = current_date - timedelta(days=729)
-
-        current_date_string = current_date.strftime("%Y-%m-%d")
-        start_date_string = start_date.strftime("%Y-%m-%d")
-
-        
-        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date_string}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
-        response = requests.get(url)
-        data = response.json()
-        
-        for data_row in data["results"]:
-            print(data_row["t"])
-            ticker_timestamp = str(data_row['t'])
-            corrected_timestamp = ticker_timestamp[0:10]
-            Stock.objects.create(
-            ticker=data["ticker"],
-            volume=data_row["v"],
-            volume_weighted=data_row['vw'],
-            open_price=data_row['o'],
-            close_price=data_row['c'],
-            highest_price=data_row['h'],
-            lowest_price=data_row['l'],
-            time=datetime.fromtimestamp(int(corrected_timestamp)),
-            num_transactions=data_row['n']
-            )
-        return Response (f"A new ticker was collected {ticker} ")
-
-        # AMD, INTC, NVDA
-        # MIRM, ALBO, AVXL, 
-        # # MULN, SNDL,
-
-
-"""
-@api_view(["GET"])
-def get_duplicates(request):
-    duplicates = IrregularStocksDates.objects.values('ticker',"time").annotate(ticker_count=Count('id'),time_count=Count("id")).filter(ticker_count__gt=1)
-    print(duplicates)
-    # IrregularStocksDates.objects.all().delete()
-    # Stock.objects.filter(ticker="NVDA").delete()
-    return Response("Done")
-
-
-@api_view(["GET"])
-def delete_duplicate_rows(request):
-    
-    
-    return Response("Deleted")
-    duplicate_rows = Stock.objects.values_list("ticker","time").annotate(id_c=Count('id')).filter(ticker="AAPL",id_c__gt=1)
-    print(duplicate_rows)
-    for index,row in enumerate(duplicate_rows):
-        if index == 0:
-            continue
-        Stock.objects.delete()
-        # Stock.objects.filter(ticker=row[0],time=row[1]).delete()
-        # data = Stock.objects.all()
-        # data.delete()
-
-    return Response("Done")
-
-"""
-
-
-
+scheduler = BackgroundScheduler() # Triggers to fire "def get_latest_data():" & "def analyze_volume_data():"
+scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=23,minute=10,day_of_week="mon,tue,wed,thu,fri"))
+scheduler.add_job(analyze_volume_data,trigger=CronTrigger(day=1,hour=23,minute=40))
+scheduler.start()
 
