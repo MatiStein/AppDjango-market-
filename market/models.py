@@ -1,6 +1,6 @@
 from django.db import models
 
-class Stock(models.Model):
+class Stock(models.Model): # Data by 'ticker'
 
     ticker = models.CharField(max_length=8)
     volume = models.DecimalField(max_digits=24 ,decimal_places=6)
@@ -20,7 +20,7 @@ class Stock(models.Model):
 
 
 
-class IrregularStocksDates(models.Model):
+class IrregularStocksDates(models.Model): # Data analyzed by 'ticker'
     ticker = models.CharField(max_length=24)
     volume = models.DecimalField(max_digits=24 ,decimal_places=6)
     avg_volume = models.DecimalField(max_digits=24,decimal_places=6)
