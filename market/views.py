@@ -5,14 +5,11 @@ from rest_framework import status
 from market.models import (Stock, IrregularStocksDates)
 from market.serializers import StockSerializer
 from datetime import (datetime, date, timedelta)
-from django.db.models import Avg, Count
+from django.db.models import Avg
 import requests
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
-# from apscheduler.triggers.interval import IntervalTrigger
-# from apscheduler.triggers.date import DateTrigger
 from apscheduler.triggers.cron import CronTrigger
-
 
 
 
@@ -111,7 +108,7 @@ def analyze_volume_data(): # Analyze data by 'ticker' using method 'Moving Avera
     return print("Done analyzing the data")
 
 
-def get_latest_data(): # Update data by 'ticker', since last known entry in data
+def get_latest_data(): # Update 'Stock' by 'ticker', since last known entry in data
     current_date = datetime.now()
     print("Started getting latest data at " , current_date)
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
