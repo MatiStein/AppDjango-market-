@@ -1,0 +1,93 @@
+
+# Update 'Stock' by 'ticker', since last known entry in the DB.
+
+def get_latest_data():
+    current_date = datetime.now()
+    print("Started getting latest data at " , current_date)
+    ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
+    for tick in ticker_unique:
+        ticker = tick[0]
+        stocks = Stock.objects.filter(
+        time__lt=current_date, ticker=ticker).order_by("-time")
+        the_latest_date = str(stocks.values_list("time", flat=True).first())
+        year = the_latest_date[0:4]
+        month = the_latest_date[5:7]
+        date = the_latest_date[8:10]
+        full_date = f"{year}-{month}-{date}"
+        current_date_string = datetime.strftime(current_date, "%Y-%m-%d")
+        print(full_date)
+        print(current_date_string)
+
+        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{full_date}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+        response = requests.get(url)
+        data = response.json()
+        print(data)
+        if data["status"] == "ERROR":
+            print("Going to sleep before more requests")
+            time.sleep(61)
+            url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{full_date}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+
+            response = requests.get(url)
+            data = response.json()
+        if data["resultsCount"] == 0:
+            print("Skipped on ", ticker, " stock")
+            continue
+
+        for index, ticker_result in enumerate(data["results"]):
+            print("RUN Once on ticker ", data["ticker"])
+            ticker_timestamp = str(ticker_result['t'])
+            corrected_timestamp = ticker_timestamp[0:10]
+            already_exist = Stock.objects.filter(ticker=data["ticker"],time=datetime.fromtimestamp(int(corrected_timestamp))).count()
+            if already_exist > 0:
+                continue
+            Stock.objects.create(
+                ticker=data["ticker"],
+                volume=ticker_result["v"],
+                volume_weighted=ticker_result['vw'],
+                open_price=ticker_result['o'],
+                close_price=ticker_result['c'],
+                highest_price=ticker_result['h'],
+                lowest_price=ticker_result['l'],
+                time=datetime.fromtimestamp(int(corrected_timestamp)),
+                num_transactions=ticker_result['n']
+            )
+    data = ticker_unique.count()
+    return print(f'Updated today {data} amount of stocks data')
+
+
+
+# Import new 'ticker' to system.
+
+@api_view(["GET"])
+def get_data(request): 
+    if request.method == "GET":
+        ticker = request.GET.get('ticker', '')
+        print(ticker)
+        current_date = date.today()
+        start_date = current_date - timedelta(days=729)
+
+        current_date_string = current_date.strftime("%Y-%m-%d")
+        start_date_string = start_date.strftime("%Y-%m-%d")
+
+        
+        url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date_string}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
+        response = requests.get(url)
+        data = response.json()
+        
+        for data_row in data["results"]:
+            print(data_row["t"])
+            ticker_timestamp = str(data_row['t'])
+            corrected_timestamp = ticker_timestamp[0:10]
+            Stock.objects.create(
+            ticker=data["ticker"],
+            volume=data_row["v"],
+            volume_weighted=data_row['vw'],
+            open_price=data_row['o'],
+            close_price=data_row['c'],
+            highest_price=data_row['h'],
+            lowest_price=data_row['l'],
+            time=datetime.fromtimestamp(int(corrected_timestamp)),
+            num_transactions=data_row['n']
+            )
+        return Response (f"A new ticker was collected {ticker} ")
+
