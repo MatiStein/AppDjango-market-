@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, permission_classes 
 from rest_framework.response import Response
 from rest_framework import status
 from market.models import (Stock, IrregularStocksDates)
@@ -11,6 +11,8 @@ import requests
 import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from django.http import JsonResponse, HttpResponse
+
 
 
 # View of data by 'ticker'
@@ -37,7 +39,7 @@ def stocks_list(requests):
         return Response(serializer.data)
 
 
-# View of analyzed by 'ticker'
+# View of analyzed IrregularStocksDates.Model by 'ticker'
 @api_view(['GET', 'POST'])
 def Stock_Analyze(requests):
     if requests.method == "GET":
@@ -68,7 +70,7 @@ def get_data(request):
         ticker = request.GET.get('ticker', '')
         print(ticker)
         current_date = date.today()
-        start_date = current_date - timedelta(days=729)
+        start_date = current_date - timedelta(days=728)
 
         current_date_string = current_date.strftime("%Y-%m-%d")
         start_date_string = start_date.strftime("%Y-%m-%d")
@@ -94,43 +96,44 @@ def get_data(request):
             )
         return Response(f"A new ticker was collected {ticker} ")
 
-# @api_view(['GET', 'POST'])
-# def analyze_volume_by_request(request):
-#   query  = requests.get('ticker', 'multiplier', 'start_date', 'end_date')
-    # from_date = requests.get('start_date', '%d-%m-%Y', blank=Today())
-    # to_date = requests.get('end_date', '%d-%m-%Y')
-#     multiplier = default(2.3263)
-#     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
 
-#     for ticker in ticker_unique:
-#         ticker = ticker[0]
-#         amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
 
-        #         for period in range(amount_of_rows_per_stock//40):
-        #             offset = 40*period
-        #             limit = 40*(period+1)
-        #             print(f'From {offset} to {limit}')
-#             filtered_ticker = Stock.objects.filter(
-#                   ticker, from_date, to_date).order_by("-time")
-#             avg_volume = filtered_ticker.aggregate(Avg("volume"))[
-#                 "volume__avg"]
-#             print("The Average is: ", avg_volume)
-#             value_to_check = float(avg_volume) * float(multiplier)
-#             data_to_response = Stock.objects.filter(
-#                 volume__gte=value_to_check,ticker__icontains=ticker).order_by("-time")
+# Query for analyzed date for a 'ticker' using method 'Average Volume' and limited in time.
+@api_view(['GET'])
+def analyze_volume_query(requests):
+    if requests.method == "GET":
+        ticker = requests.GET.get('ticker')
+        multiplier = requests.GET.get('multi', 2.3263)
+        from_date = requests.GET.get('from_date', '%d-%m-%Y')
+        to_date = requests.GET.get('to_date', '%d-%m-%Y')
 
-#             for row in data_to_response:
-#                 already_existed = IrregularStocksDates.objects.filter(ticker=ticker,time=row.time)
-#                 if already_existed:
-#                     continue
-#                 IrregularStocksDates.objects.create(
-#                     ticker=ticker,
-#                     volume=row.volume,
-#                     avg_volume=avg_volume,
-#                     time=row.time
-#                 )
-#                 print("ADDED IRREGULAR ROW TO ", ticker)
-#     return print("Done analyzing the data")
+        amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
+
+        for period in range(amount_of_rows_per_stock):
+            period= datetime.date.order_by("-time")[from_date:to_date]
+            filtered_stocks = Stock.objects.filter(
+                ticker=ticker).order_by("-time")[from_date:to_date]
+            avg_volume = filtered_stocks.aggregate(Avg("volume"))[
+                "volume__avg"]
+            print("The Average is: ", filtered_stocks)
+            print(Stock.objects.filter(ticker=ticker).order_by(
+                "-time")[from_date:to_date].count())
+            value_to_check = float(avg_volume) * float(multiplier)
+            
+            data_to_response = filtered_stocks.filter(
+                volume__gte=value_to_check)
+            for row in data_to_response:
+                volume = filtered_stocks.filter("volume")
+                rating = (volume - avg_volume)//avg_volume
+                data_to_response = data_to_response.update(rating, avg_volume) 
+                print("ADDED IRREGULAR ROW", ticker)
+            
+            
+            
+            
+                return Response(f" ticker{ticker}, date{date}, avg_volume{avg_volume}, rating{rating}")
+
+
 
 
 # Update 'Stock' by 'ticker', since last known entry in the DB.
@@ -189,6 +192,7 @@ def get_latest_data():
     return print(f'Updated today {data} amount of stocks data')
 
 
+
 # Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days.
 # Find those days higher then Average by 10times 'StdDev'.
 def analyze_volume_data():
@@ -217,13 +221,17 @@ def analyze_volume_data():
             for row in data_to_response:
                 already_existed = IrregularStocksDates.objects.filter(
                     ticker=ticker, time=row.time)
+                
                 if already_existed:
                     continue
+                volume = row.volume
+                rating = (volume - avg_volume)//avg_volume
                 IrregularStocksDates.objects.create(
                     ticker=ticker,
                     volume=row.volume,
                     avg_volume=avg_volume,
                     dev_volume=dev_volume,
+                    rating = rating,
                     time=row.time
                 )
                 print("ADDED IRREGULAR ROW TO ", ticker)
@@ -232,6 +240,6 @@ def analyze_volume_data():
 
 # Triggers to run "def get_latest_data():" & "def analyze_volume_data():"
 scheduler = BackgroundScheduler()
-scheduler.add_job(get_latest_data, trigger=CronTrigger(hour=23, minute=50, day_of_week="mon,tue,wed,thu,fri"))
-scheduler.add_job(analyze_volume_data,trigger=CronTrigger(day=20, hour=0, minute=33))
+scheduler.add_job(get_latest_data, trigger=CronTrigger(hour=23, minute=30, day_of_week="mon,tue,wed,thu,fri"))
+scheduler.add_job(analyze_volume_data,trigger=CronTrigger(day=23, hour=19, minute=34))
 scheduler.start()

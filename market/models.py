@@ -19,17 +19,13 @@ class Stock(models.Model): # Data by 'ticker'
         return f"{self.ticker}, {self.close_price}, {self.volume}"
 
 
-# class Ticker(models.Model):
-
-#     ticker = Stock.objects.filter(ticker=self.ticker).order_by("-time")
-    
-
 
 class IrregularStocksDates(models.Model): # Data analyzed by 'ticker'
     ticker = models.CharField(max_length=24)
     volume = models.DecimalField(max_digits=24, decimal_places=6)
     avg_volume = models.DecimalField(max_digits=24, decimal_places=6)
     dev_volume = models.DecimalField(max_digits=15, decimal_places=6, null = True)
+    rating = models.DecimalField(max_digits=6, decimal_places=2, null = True)
     time = models.DateTimeField(null=True)
 
     class Meta:
@@ -37,5 +33,3 @@ class IrregularStocksDates(models.Model): # Data analyzed by 'ticker'
 
     def __str__(self) -> str:
         return f"{self.ticker} with {self.volume} at {self.time}"
-
-
