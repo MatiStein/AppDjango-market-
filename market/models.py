@@ -15,12 +15,12 @@ class Stock(models.Model): # Data by 'ticker'
     class Meta:
         unique_together = [['ticker', 'time']]
     
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.ticker}, {self.close_price}, {self.volume}"
 
 
 
-class IrregularStocksDates(models.Model): # Data analyzed by 'ticker'
+class IrregularStocksDates(models.Model): # Data analyzed by 'ticker' of views.analyze_volume_data():
     ticker = models.CharField(max_length=24)
     volume = models.DecimalField(max_digits=24, decimal_places=6)
     avg_volume = models.DecimalField(max_digits=24, decimal_places=6)

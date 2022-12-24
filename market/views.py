@@ -34,7 +34,7 @@ def stocks_list(requests):
                             status=status.HTTP_400_BAD_REQUEST)
 
         filtered_stocks = Stock.objects.filter(
-            ticker__icontains=ticker, time__gte=from_date_object, time__lte=to_date_object).order_by("-time")
+            ticker=ticker, time__gte=from_date_object, time__lte=to_date_object).order_by("-time")
         serializer = StockSerializer(filtered_stocks, many=True)
         return Response(serializer.data)
 
@@ -63,12 +63,14 @@ def Stock_Analyze(requests):
         return Response(serializer.data)
 
 
-# Import new 'ticker' to system.
+# Import new 'ticker' in to the app.
 @api_view(["GET"])
 def get_data(request):
     if request.method == "GET":
         ticker = request.GET.get('ticker', '')
-        print(ticker)
+        test_already_exist = Stock.objects.filter(ticker=ticker).count()
+        if test_already_exist > 0:
+            return Response(f"{ticker} Already exist in database, query the database through /stock api endpoint",400)
         current_date = date.today()
         start_date = current_date - timedelta(days=728)
 
@@ -98,45 +100,76 @@ def get_data(request):
 
 
 
-# Query for analyzed date for a 'ticker' using method 'Average Volume' and limited in time.
-@api_view(['GET'])
+# # Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
+# @api_view(['GET'])
+# def analyze_volume_query(requests):
+#     if requests.method == "GET":
+#         ticker = requests.GET.get('ticker')
+#         multiplier = requests.GET.get('multi', 2.3263)
+#         from_date = requests.GET.get('from_date')
+#         to_date = requests.GET.get('to_date')
+#         amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
+#         #period= datetime.date.[from_date:to_date]
+#         for period in range(amount_of_rows_per_stock):
+            
+#             filtered_stocks = Stock.objects.filter(
+#                 ticker=ticker).order_by("-time")[from_date:to_date]
+#             avg_volume = filtered_stocks.aggregate(Avg("volume"))[
+#                 "volume__avg"]
+#             print("The Average is: ", filtered_stocks)
+#             print(Stock.objects.filter(ticker=ticker).order_by(
+#                 "-time")[from_date:to_date].count())
+#             value_to_check = float(avg_volume) * float(multiplier)
+            
+#             data_to_response = filtered_stocks.filter(
+#                 volume__gte=value_to_check)
+#             for row in data_to_response:
+#                 volume = filtered_stocks.filter("volume")
+#                 rating = (volume - avg_volume)//avg_volume
+#                 data_to_response = data_to_response.update( * avg_volume) 
+#                 print("ADDED IRREGULAR ROW", ticker)
+            
+            
+            
+            
+#                 return Response(f" ticker{ticker}, date{date}, avg_volume{avg_volume}, rating{rating}")
+
+
+
+@api_view(["GET"])
 def analyze_volume_query(requests):
     if requests.method == "GET":
-        ticker = requests.GET.get('ticker')
+        ticker = requests.GET.get('ticker', '')
         multiplier = requests.GET.get('multi', 2.3263)
-        from_date = requests.GET.get('from_date', '%d-%m-%Y')
-        to_date = requests.GET.get('to_date', '%d-%m-%Y')
+        from_date = requests.GET.get("from_date")
+        to_date = requests.GET.get("to_date")
+        try:
+            from_date_object = datetime.strptime(from_date,"%d-%m-%Y")
+            to_date_object = datetime.strptime(to_date,"%d-%m-%Y")
+        except:
+            return Response("From date or to date was not inserted correctly",400)
 
-        amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
+        average_volume_between_dates = Stock.objects.filter(ticker=ticker,time__lte=to_date_object,time__gte=from_date_object)
+        print(average_volume_between_dates)
+        avg_volume = average_volume_between_dates.aggregate(Avg("volume"))[
+            "volume__avg"] 
+        print("The Average is: ", avg_volume)
+        if (avg_volume == None):
+            return Response("No stocks found at those dates with that stock name")
 
-        for period in range(amount_of_rows_per_stock):
-            period= datetime.date.order_by("-time")[from_date:to_date]
-            filtered_stocks = Stock.objects.filter(
-                ticker=ticker).order_by("-time")[from_date:to_date]
-            avg_volume = filtered_stocks.aggregate(Avg("volume"))[
-                "volume__avg"]
-            print("The Average is: ", filtered_stocks)
-            print(Stock.objects.filter(ticker=ticker).order_by(
-                "-time")[from_date:to_date].count())
-            value_to_check = float(avg_volume) * float(multiplier)
-            
-            data_to_response = filtered_stocks.filter(
-                volume__gte=value_to_check)
-            for row in data_to_response:
-                volume = filtered_stocks.filter("volume")
-                rating = (volume - avg_volume)//avg_volume
-                data_to_response = data_to_response.update(rating, avg_volume) 
-                print("ADDED IRREGULAR ROW", ticker)
-            
-            
-            
-            
-                return Response(f" ticker{ticker}, date{date}, avg_volume{avg_volume}, rating{rating}")
+        value_to_check = float(avg_volume) * float(multiplier)
+        data_to_response = average_volume_between_dates.filter(
+            volume__gte=value_to_check).order_by("-volume")
+        serializer = StockSerializer(data_to_response,many=True)
+
+        response_object = {
+            "averageVolume":avg_volume,
+            "stockDays":serializer.data
+        }
+        return Response(response_object)
 
 
-
-
-# Update 'Stock' by 'ticker', since last known entry in the DB.
+# Update 'Stock' by 'ticker', since last known entry in the DataBase.
 def get_latest_data():
     current_date = datetime.now()
     print("Started getting latest data at ", current_date)
@@ -162,9 +195,9 @@ def get_latest_data():
             print("Going to sleep before more requests")
             time.sleep(61)
             url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{full_date}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
-
             response = requests.get(url)
             data = response.json()
+
         if data["resultsCount"] == 0:
             print("Skipped on ", ticker, " stock")
             continue
@@ -188,13 +221,15 @@ def get_latest_data():
                 time=datetime.fromtimestamp(int(corrected_timestamp)),
                 num_transactions=ticker_result['n']
             )
+        print("Went to sleep for 15 seconds before getting next stock")
+        time.sleep(15)
     data = ticker_unique.count()
     return print(f'Updated today {data} amount of stocks data')
 
 
 
 # Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days.
-# Find those days higher then Average by 10times 'StdDev'.
+# Find the dates of volume higher then Average by 5 times 'StdDev'.
 def analyze_volume_data():
     multiplier = 5
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
@@ -240,6 +275,9 @@ def analyze_volume_data():
 
 # Triggers to run "def get_latest_data():" & "def analyze_volume_data():"
 scheduler = BackgroundScheduler()
-scheduler.add_job(get_latest_data, trigger=CronTrigger(hour=23, minute=30, day_of_week="mon,tue,wed,thu,fri"))
-scheduler.add_job(analyze_volume_data,trigger=CronTrigger(day=23, hour=19, minute=34))
+scheduler.add_job(get_latest_data, trigger=CronTrigger
+    (timezone='UTC', hour=12, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
+scheduler.add_job(analyze_volume_data,trigger=CronTrigger
+    (timezone='UTC', hour=1, minute=2, day_of_week="mon"))
+#scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=9,minute=29))
 scheduler.start()
