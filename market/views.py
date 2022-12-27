@@ -15,6 +15,15 @@ from django.http import JsonResponse, HttpResponse
 
 
 
+# View of list of all 'ticker' in Stock.model
+@api_view(['GET'])
+def ticker_list(requests):
+    if requests.method == "GET":
+        ticker_sym = list(Stock.objects.values_list('ticker').distinct())
+        return JsonResponse(ticker_sym, safe=False)
+
+
+
 # View of data by 'ticker'
 @api_view(['GET', 'POST'])
 def stocks_list(requests):
@@ -39,6 +48,7 @@ def stocks_list(requests):
         return Response(serializer.data)
 
 
+
 # View of analyzed IrregularStocksDates.Model by 'ticker'
 @api_view(['GET', 'POST'])
 def Stock_Analyze(requests):
@@ -61,6 +71,7 @@ def Stock_Analyze(requests):
             ticker=ticker, time__gte=from_date_object, time__lte=to_date_object).order_by("-time")
         serializer = IrregularStocksDatesSerializer(analyzed_stocks, many=True)
         return Response(serializer.data)
+
 
 
 # Import new 'ticker' in to the app.
@@ -100,42 +111,7 @@ def get_data(request):
 
 
 
-# # Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
-# @api_view(['GET'])
-# def analyze_volume_query(requests):
-#     if requests.method == "GET":
-#         ticker = requests.GET.get('ticker')
-#         multiplier = requests.GET.get('multi', 2.3263)
-#         from_date = requests.GET.get('from_date')
-#         to_date = requests.GET.get('to_date')
-#         amount_of_rows_per_stock = Stock.objects.filter(ticker=ticker).count()
-#         #period= datetime.date.[from_date:to_date]
-#         for period in range(amount_of_rows_per_stock):
-            
-#             filtered_stocks = Stock.objects.filter(
-#                 ticker=ticker).order_by("-time")[from_date:to_date]
-#             avg_volume = filtered_stocks.aggregate(Avg("volume"))[
-#                 "volume__avg"]
-#             print("The Average is: ", filtered_stocks)
-#             print(Stock.objects.filter(ticker=ticker).order_by(
-#                 "-time")[from_date:to_date].count())
-#             value_to_check = float(avg_volume) * float(multiplier)
-            
-#             data_to_response = filtered_stocks.filter(
-#                 volume__gte=value_to_check)
-#             for row in data_to_response:
-#                 volume = filtered_stocks.filter("volume")
-#                 rating = (volume - avg_volume)//avg_volume
-#                 data_to_response = data_to_response.update( * avg_volume) 
-#                 print("ADDED IRREGULAR ROW", ticker)
-            
-            
-            
-            
-#                 return Response(f" ticker{ticker}, date{date}, avg_volume{avg_volume}, rating{rating}")
-
-
-
+# Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
 @api_view(["GET"])
 def analyze_volume_query(requests):
     if requests.method == "GET":
@@ -160,13 +136,15 @@ def analyze_volume_query(requests):
         value_to_check = float(avg_volume) * float(multiplier)
         data_to_response = average_volume_between_dates.filter(
             volume__gte=value_to_check).order_by("-volume")
+        
         serializer = StockSerializer(data_to_response,many=True)
 
         response_object = {
             "averageVolume":avg_volume,
-            "stockDays":serializer.data
-        }
+            "stockDays":serializer.data,
+            }
         return Response(response_object)
+
 
 
 # Update 'Stock' by 'ticker', since last known entry in the DataBase.
@@ -273,11 +251,14 @@ def analyze_volume_data():
     return print("Done analyzing the data")
 
 
+
 # Triggers to run "def get_latest_data():" & "def analyze_volume_data():"
 scheduler = BackgroundScheduler()
 scheduler.add_job(get_latest_data, trigger=CronTrigger
     (timezone='UTC', hour=12, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
 scheduler.add_job(analyze_volume_data,trigger=CronTrigger
     (timezone='UTC', hour=1, minute=2, day_of_week="mon"))
-#scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=9,minute=29))
+#scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=16,minute=40))
+#scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=17, minute=50))
+
 scheduler.start()
