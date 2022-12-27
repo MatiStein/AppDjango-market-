@@ -91,20 +91,13 @@ def group_tzcasts(tlist):
     def match(token):
         return token.ttype == T.Keyword.TZCast
 
-    def valid_prev(token):
+    def valid(token):
         return token is not None
-
-    def valid_next(token):
-        return token is not None and (
-            token.is_whitespace
-            or token.match(T.Keyword, 'AS')
-            or token.match(*sql.TypedLiteral.M_CLOSE)
-        )
 
     def post(tlist, pidx, tidx, nidx):
         return pidx, nidx
 
-    _group(tlist, sql.Identifier, match, valid_prev, valid_next, post)
+    _group(tlist, sql.Identifier, match, valid, valid, post)
 
 
 def group_typed_literal(tlist):
@@ -341,15 +334,12 @@ def group_aliased(tlist):
 def group_functions(tlist):
     has_create = False
     has_table = False
-    has_as = False
     for tmp_token in tlist.tokens:
-        if tmp_token.value.upper() == 'CREATE':
+        if tmp_token.value == 'CREATE':
             has_create = True
-        if tmp_token.value.upper() == 'TABLE':
+        if tmp_token.value == 'TABLE':
             has_table = True
-        if tmp_token.value == 'AS':
-            has_as = True
-    if has_create and has_table and not has_as:
+    if has_create and has_table:
         return
 
     tidx, token = tlist.token_next_by(t=T.Name)

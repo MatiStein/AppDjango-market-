@@ -15,7 +15,7 @@ from django.http import JsonResponse, HttpResponse
 
 
 
-# View of list of all 'ticker' in Stock.model
+# View of list of all 'ticker' in Stock.Model
 @api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":

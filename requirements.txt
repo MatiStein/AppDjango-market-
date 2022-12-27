@@ -1,5 +1,5 @@
 APScheduler==3.9.1.post1
-asgiref==3.4.1
+asgiref
 autopep8==2.0.0
 certifi==2022.9.24
 charset-normalizer==2.1.1
@@ -7,7 +7,7 @@ click==8.1.3
 colorama==0.4.6
 commonmark==0.9.1
 distlib==0.3.6
-Django==4.1.4
+Django
 django-apscheduler==0.6.2
 django-background-tasks==1.2.5
 django-compat==1.0.15
