@@ -1,0 +1,53 @@
+        from django.db import models
+
+
+
+
+class Users(models.Model):
+    user = models.CharField(max_length=12)
+    email = models.EmailField()
+
+    class Meta:
+        unique_together = [['user'],['email']]
+    
+    def __str__(self) -> str:
+        return f"{self.user}, {self.email}"
+
+
+class Profile(models.Model):
+    user = models.ForeignKey(Users, on_delete=models.CASCADE)
+    tickers = models.CharField(max_length=8)
+    key_words = models.CharField(max_length=20)
+
+    def __str__(self) -> str:
+        return f"{self.user}, {self.tickers}, {self.key_words}"
+
+
+        _____________________________________
+
+
+from django.db import models
+from django.contrib.auth.models import User
+
+class UserModel(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    name = models.CharField(max_length=12) 
+    email = models.EmailField(max_length=48)
+
+    class Meta:
+        unique_together = [['user', 'name']]
+    
+    def __str__(self) -> str:
+        return f" {self.user}"
+
+
+class ProfileUser(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True)
+    tickers = models.TextField(max_length=8, null=True)
+    key_words = models.CharField(max_length=18, null=True)
+
+    def __str__(self) -> str:
+        return f"{self.user}"
+
+
+

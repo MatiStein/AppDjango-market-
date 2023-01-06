@@ -1,8 +1,10 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view, permission_classes 
+from rest_framework import permissions
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
-from market.models import (Stock, IrregularStocksDates)
+from market.models import (Stock, IrregularStocksDates, StockList,UserStock)
 from market.serializers import (StockSerializer, IrregularStocksDatesSerializer)
 from datetime import (datetime, date, timedelta)
 from django.db.models import Avg
@@ -12,20 +14,41 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django.http import JsonResponse, HttpResponse
+from functools import lru_cache
 
 
 
 # View of list of all 'ticker' in Stock.Model
+
 @api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":
+        # stocks_names = Stock.objects.values_list("ticker").distinct()
+        # for stock in stocks_names:
+        #     StockList.objects.create(ticker=stock[0])
         ticker_sym = list(Stock.objects.values_list('ticker').distinct())
         return JsonResponse(ticker_sym, safe=False)
 
 
+# Save tickers to user in UserStock.Model
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_user_stock(requests):
+    user = requests.user
+    if requests.method == "POST":
+        ticker = requests.data['ticker_id']
+        stock = StockList.objects.get(id=ticker)
+        user_new_stock = UserStock.objects.create(stock=stock, user=user)
+        if user_new_stock:
+            return Response(status=status.HTTP_201_CREATED)
+
+
 
 # View of data by 'ticker'
+
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def stocks_list(requests):
     if requests.method == "GET":
         ticker = requests.GET.get('ticker', '')
@@ -50,7 +73,9 @@ def stocks_list(requests):
 
 
 # View of analyzed IrregularStocksDates.Model by 'ticker'
+
 @api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
 def Stock_Analyze(requests):
     if requests.method == "GET":
         ticker = requests.GET.get('ticker', '')
@@ -74,8 +99,8 @@ def Stock_Analyze(requests):
 
 
 
-# Import new 'ticker' in to the app.
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
 def get_data(request):
     if request.method == "GET":
         ticker = request.GET.get('ticker', '')
@@ -84,14 +109,13 @@ def get_data(request):
             return Response(f"{ticker} Already exist in database, query the database through /stock api endpoint",400)
         current_date = date.today()
         start_date = current_date - timedelta(days=728)
-
         current_date_string = current_date.strftime("%Y-%m-%d")
         start_date_string = start_date.strftime("%Y-%m-%d")
 
         url = f"https://api.polygon.io/v2/aggs/ticker/{ticker}/range/1/day/{start_date_string}/{current_date_string}?adjusted=true&sort=asc&limit=500000&apiKey=nyd1QVoAqt4QVkHYYMqe_5kvFfN40G8D"
         response = requests.get(url)
         data = response.json()
-
+        StockList.objects.create(ticker=data["ticker"])
         for data_row in data["results"]:
             print(data_row["t"])
             ticker_timestamp = str(data_row['t'])
@@ -112,7 +136,10 @@ def get_data(request):
 
 
 # Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
+
 @api_view(["GET"])
+@permission_classes([IsAuthenticated])
+@lru_cache(maxsize=None)
 def analyze_volume_query(requests):
     if requests.method == "GET":
         ticker = requests.GET.get('ticker', '')
@@ -126,12 +153,11 @@ def analyze_volume_query(requests):
             return Response("From date or to date was not inserted correctly",400)
 
         average_volume_between_dates = Stock.objects.filter(ticker=ticker,time__lte=to_date_object,time__gte=from_date_object)
-        print(average_volume_between_dates)
         avg_volume = average_volume_between_dates.aggregate(Avg("volume"))[
             "volume__avg"] 
         print("The Average is: ", avg_volume)
         if (avg_volume == None):
-            return Response("No stocks found at those dates with that stock name")
+            return Response("No stocks's event was found")
 
         value_to_check = float(avg_volume) * float(multiplier)
         data_to_response = average_volume_between_dates.filter(
@@ -148,6 +174,7 @@ def analyze_volume_query(requests):
 
 
 # Update 'Stock' by 'ticker', since last known entry in the DataBase.
+
 def get_latest_data():
     current_date = datetime.now()
     print("Started getting latest data at ", current_date)
@@ -199,15 +226,16 @@ def get_latest_data():
                 time=datetime.fromtimestamp(int(corrected_timestamp)),
                 num_transactions=ticker_result['n']
             )
-        print("Went to sleep for 15 seconds before getting next stock")
+        print("Sleep for 15 seconds before getting next stock")
         time.sleep(15)
     data = ticker_unique.count()
-    return print(f'Updated today {data} amount of stocks data')
+    return print(f'Updated {data} amount of stocks data')
 
 
 
-# Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days.
+# Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days window.
 # Find the dates of volume higher then Average by 5 times 'StdDev'.
+
 def analyze_volume_data():
     multiplier = 5
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
@@ -253,12 +281,15 @@ def analyze_volume_data():
 
 
 # Triggers to run "def get_latest_data():" & "def analyze_volume_data():"
+
 scheduler = BackgroundScheduler()
 scheduler.add_job(get_latest_data, trigger=CronTrigger
-    (timezone='UTC', hour=12, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
+    (timezone='UTC', hour=11, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
 scheduler.add_job(analyze_volume_data,trigger=CronTrigger
     (timezone='UTC', hour=1, minute=2, day_of_week="mon"))
-#scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=16,minute=40))
-#scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=17, minute=50))
+
+# scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=11,minute=1))
+# scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=23, minute=12))
 
 scheduler.start()
+

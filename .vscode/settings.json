@@ -3,5 +3,8 @@
     "python.analysis.extraPaths": [
         "./django_schedule_jobs/did_django_schedule_jobs/jobs"
     ],
-    "git.ignoreLimitWarning": true
+    "git.ignoreLimitWarning": true,
+    "cSpell.words": [
+        "corsheaders"
+    ]
 }

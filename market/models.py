@@ -1,7 +1,11 @@
 from django.db import models
+from django.contrib.auth.models import User
 
-class Stock(models.Model): # Data by 'ticker'
 
+
+# Data by 'ticker'
+
+class Stock(models.Model):
     ticker = models.CharField(max_length=8)
     volume = models.DecimalField(max_digits=24 ,decimal_places=6)
     volume_weighted = models.DecimalField(max_digits=24 ,decimal_places=6)
@@ -16,11 +20,13 @@ class Stock(models.Model): # Data by 'ticker'
         unique_together = [['ticker', 'time']]
     
     def __str__(self) -> str:
-        return f"{self.ticker}, {self.close_price}, {self.volume}"
+        return f"{self.ticker}, {self.open_price} To {self.close_price} & V {self.volume}"
 
 
 
-class IrregularStocksDates(models.Model): # Data analyzed by 'ticker' of views.analyze_volume_data():
+# Data analyzed by 'ticker' of views.analyze_volume_data():
+
+class IrregularStocksDates(models.Model): 
     ticker = models.CharField(max_length=24)
     volume = models.DecimalField(max_digits=24, decimal_places=6)
     avg_volume = models.DecimalField(max_digits=24, decimal_places=6)
@@ -32,4 +38,32 @@ class IrregularStocksDates(models.Model): # Data analyzed by 'ticker' of views.a
         unique_together = [['ticker', 'time']]
 
     def __str__(self) -> str:
-        return f"{self.ticker} with {self.volume} at {self.time}"
+        return f"{self.ticker} is {self.volume} & {self.rating} at {self.time}"
+
+
+
+# List of all 'tickers' in the DB.
+
+class StockList(models.Model):
+    ticker = models.CharField(max_length=8)
+
+    class Meta:
+        unique_together = [['ticker']]
+
+    def __str__(self) -> str:
+        return f"{self.ticker}"
+
+
+
+
+# List of 'tickers' associated with 'user'
+
+class UserStock(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    stock = models.ForeignKey(StockList, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = [['user','stock']]
+
+    def __str__(self) -> str:
+        return f"{self.user}, {self.stock}"
