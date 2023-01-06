@@ -14,12 +14,9 @@ import time
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from django.http import JsonResponse, HttpResponse
-from functools import lru_cache
-
 
 
 # View of list of all 'ticker' in Stock.Model
-
 @api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":
@@ -31,7 +28,6 @@ def ticker_list(requests):
 
 
 # Save tickers to user in UserStock.Model
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def add_user_stock(requests):
@@ -44,9 +40,7 @@ def add_user_stock(requests):
             return Response(status=status.HTTP_201_CREATED)
 
 
-
 # View of data by 'ticker'
-
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def stocks_list(requests):
@@ -71,9 +65,7 @@ def stocks_list(requests):
         return Response(serializer.data)
 
 
-
 # View of analyzed IrregularStocksDates.Model by 'ticker'
-
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def Stock_Analyze(requests):
@@ -98,7 +90,7 @@ def Stock_Analyze(requests):
         return Response(serializer.data)
 
 
-
+# Import new 'ticker' into the app.
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def get_data(request):
@@ -134,12 +126,9 @@ def get_data(request):
         return Response(f"A new ticker was collected {ticker} ")
 
 
-
 # Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
-
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
-@lru_cache(maxsize=None)
 def analyze_volume_query(requests):
     if requests.method == "GET":
         ticker = requests.GET.get('ticker', '')
@@ -172,9 +161,7 @@ def analyze_volume_query(requests):
         return Response(response_object)
 
 
-
 # Update 'Stock' by 'ticker', since last known entry in the DataBase.
-
 def get_latest_data():
     current_date = datetime.now()
     print("Started getting latest data at ", current_date)
@@ -232,10 +219,8 @@ def get_latest_data():
     return print(f'Updated {data} amount of stocks data')
 
 
-
 # Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days window.
 # Find the dates of volume higher then Average by 5 times 'StdDev'.
-
 def analyze_volume_data():
     multiplier = 5
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
@@ -279,17 +264,15 @@ def analyze_volume_data():
     return print("Done analyzing the data")
 
 
-
 # Triggers to run "def get_latest_data():" & "def analyze_volume_data():"
-
 scheduler = BackgroundScheduler()
 scheduler.add_job(get_latest_data, trigger=CronTrigger
-    (timezone='UTC', hour=11, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
+    (timezone='UTC', hour=12, minute=1, day_of_week="mon,tue,wed,thu,fri,sat"))
 scheduler.add_job(analyze_volume_data,trigger=CronTrigger
     (timezone='UTC', hour=1, minute=2, day_of_week="mon"))
 
-# scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=11,minute=1))
-# scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=23, minute=12))
+# scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=21,minute=28))
+# scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=21, minute=28))
 
 scheduler.start()
 
