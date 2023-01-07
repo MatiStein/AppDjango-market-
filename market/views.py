@@ -126,7 +126,7 @@ def get_data(request):
         return Response(f"A new ticker was collected {ticker} ")
 
 
-# Query for analyzed date for a 'ticker' using method 'Average Volume' and time limited.
+# Query for analyzed date for a 'ticker' using method 'Average Volume' within a time frame.
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def analyze_volume_query(requests):
@@ -161,7 +161,7 @@ def analyze_volume_query(requests):
         return Response(response_object)
 
 
-# Update 'Stock' by 'ticker', since last known entry in the DataBase.
+# Update 'Stock' by 'ticker', since last known entry in the DB.
 def get_latest_data():
     current_date = datetime.now()
     print("Started getting latest data at ", current_date)
@@ -272,7 +272,7 @@ scheduler.add_job(analyze_volume_data,trigger=CronTrigger
     (timezone='UTC', hour=1, minute=2, day_of_week="mon"))
 
 # scheduler.add_job(get_latest_data,trigger=CronTrigger(hour=21,minute=28))
-# scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=21, minute=28))
+# scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=9, minute=16))
 
 scheduler.start()
 
