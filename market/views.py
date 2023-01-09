@@ -16,15 +16,15 @@ from apscheduler.triggers.cron import CronTrigger
 from django.http import JsonResponse, HttpResponse
 
 
-# View of list of all 'ticker' in Stock.Model
-@api_view(['GET'])
+# View of list of all 'tickers' in Stock.Model was replaced by StockList.Model
+"""@api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":
         # stocks_names = Stock.objects.values_list("ticker").distinct()
         # for stock in stocks_names:
         #     StockList.objects.create(ticker=stock[0])
         ticker_sym = list(Stock.objects.values_list('ticker').distinct())
-        return JsonResponse(ticker_sym, safe=False)
+        return JsonResponse(ticker_sym, safe=False) """
 
 
 # Save tickers to user in UserStock.Model
