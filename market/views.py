@@ -5,7 +5,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from market.models import (Stock, IrregularStocksDates, StockList,UserStock)
-from market.serializers import (StockSerializer, IrregularStocksDatesSerializer)
+from market.serializers import *
 from datetime import (datetime, date, timedelta)
 from django.db.models import Avg
 from django.db.models.aggregates import StdDev
@@ -16,15 +16,19 @@ from apscheduler.triggers.cron import CronTrigger
 from django.http import JsonResponse, HttpResponse
 
 
-# View of list of all 'tickers' in Stock.Model was replaced by StockList.Model
-"""@api_view(['GET'])
+# View of list of all 'tickers' in StockList.Model
+# @api_view(['GET'])
+# def ticker_list(requests):
+#     if requests.method == "GET":
+#         tickers = list(StockList.objects.values_list('ticker'))
+#         tickers_dict = {"Stocks": tickers}
+#         return JsonResponse(tickers_dict, safe=False)
+@api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":
-        # stocks_names = Stock.objects.values_list("ticker").distinct()
-        # for stock in stocks_names:
-        #     StockList.objects.create(ticker=stock[0])
-        ticker_sym = list(Stock.objects.values_list('ticker').distinct())
-        return JsonResponse(ticker_sym, safe=False) """
+        tickers = list(StockList.objects.values_list('ticker', flat=True))
+        return JsonResponse({"Stocks": tickers}, safe=False)
+
 
 
 # Save tickers to user in UserStock.Model
