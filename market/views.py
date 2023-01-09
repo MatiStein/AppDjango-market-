@@ -17,18 +17,11 @@ from django.http import JsonResponse, HttpResponse
 
 
 # View of list of all 'tickers' in StockList.Model
-# @api_view(['GET'])
-# def ticker_list(requests):
-#     if requests.method == "GET":
-#         tickers = list(StockList.objects.values_list('ticker'))
-#         tickers_dict = {"Stocks": tickers}
-#         return JsonResponse(tickers_dict, safe=False)
 @api_view(['GET'])
 def ticker_list(requests):
     if requests.method == "GET":
         tickers = list(StockList.objects.values_list('ticker', flat=True))
         return JsonResponse({"Stocks": tickers}, safe=False)
-
 
 
 # Save tickers to user in UserStock.Model
@@ -224,7 +217,7 @@ def get_latest_data():
 
 
 # Analyze data by 'ticker' using methods 'Moving Average' and 'Standard deviation' of 30 trade days window.
-# Find the dates of volume higher then Average by 5 times 'StdDev'.
+# Find the dates of volume higher then Average by 5 times of 'StdDev'.
 def analyze_volume_data():
     multiplier = 5
     ticker_unique = Stock.objects.order_by().values_list("ticker").distinct()
@@ -279,4 +272,3 @@ scheduler.add_job(analyze_volume_data,trigger=CronTrigger
 # scheduler.add_job(analyze_volume_data,trigger=CronTrigger(hour=9, minute=16))
 
 scheduler.start()
-
